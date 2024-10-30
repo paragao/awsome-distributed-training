@@ -9,8 +9,9 @@ import numpy as np
 import pandas as pd
 
 import zarr
-import tensorflow as tf
-from skimage.io import imread
+#import tensorflow as tf
+#from skimage.io import imread
+import imageio
 
 DEFAULT_CHANNELS = (1, 2, 3, 4, 5, 6)
 DEFAULT_COMPRESSION = {"cname": "zstd", "clevel": 3, "shuffle": 2}
@@ -34,13 +35,12 @@ def zarrify(x, dest, chunk=512, compression=DEFAULT_COMPRESSION):
     z[:] = x
     return z
 
-ZARR_DEST = "{dataset}/{experiment}/Plate{plate}/{well}_s{site}.zarr"
+ZARR_DEST = "{experiment}/Plate{plate}/{well}_s{site}.zarr"
 
 
 
 def load_image(image_path):
-    with tf.io.gfile.GFile(image_path, 'rb') as f:
-        return imread(f, format='png')
+    return imageio.v3.imread(image_path)
 
 
 def load_images_as_tensor(image_paths, dtype=np.uint8):
@@ -49,12 +49,12 @@ def load_images_as_tensor(image_paths, dtype=np.uint8):
     data = np.ndarray(shape=(512, 512, n_channels), dtype=dtype)
 
     for ix, img_path in enumerate(image_paths):
+        #print(img_path)
         data[:, :, ix] = load_image(img_path)
 
     return data
 
-def image_path(dataset,
-               experiment,
+def image_path(experiment,
                plate,
                address,
                site,
@@ -65,7 +65,7 @@ def image_path(dataset,
 
     Parameters
     ----------
-    dataset : str
+    dataset : str #ignored for now
         what subset of the data: train, test
     experiment : str
         experiment name
@@ -84,14 +84,13 @@ def image_path(dataset,
     -------
     str the path of image
     """
-    return os.path.join(base_path, dataset, experiment, "Plate{}".format(plate),
+    return os.path.join(base_path, experiment, "Plate{}".format(plate),
                         "{}_s{}_w{}.png".format(address, site, channel))
 
 
 
 
-def load_site(dataset,
-              experiment,
+def load_site(experiment,
               plate,
               well,
               site,
@@ -121,17 +120,21 @@ def load_site(dataset,
     -------
     np.ndarray the image data of the site
     """
+
+    #import pdb;pdb.set_trace()
     channel_paths = [
         image_path(
-            dataset, experiment, plate, well, site, c, base_path=base_path)
+            experiment, plate, well, site, c, base_path=base_path)
         for c in channels
     ]
+
     return load_images_as_tensor(channel_paths)
 
 
 
 @t.curry
 def convert_to_zarr(src_base_path, dest_base_path, site_info):
+    #print(site_info)
     dest = os.path.join(dest_base_path, ZARR_DEST.format(**site_info))
     site_data = load_site(base_path=src_base_path, **site_info)
     zarrify(site_data, dest)
@@ -139,9 +142,9 @@ def convert_to_zarr(src_base_path, dest_base_path, site_info):
 def convert_all(raw_images, dest_path, metadata):
     #metadata_df = rio.combine_metadata(metadata, include_controls=False)
 
-    metadata_df = pd.read_csv(metadata+'metadata.csv')
+    metadata_df = pd.read_csv(metadata+'.csv')
     #import pdb;pdb.set_trace()
-    sites = metadata_df[['dataset', 'experiment', 'plate', 'well', 'site']].to_dict(orient='records')
+    sites = metadata_df[['experiment', 'plate', 'well', 'site']].to_dict(orient='records')
     bag = dask.bag.from_sequence(sites)
     bag.map(convert_to_zarr(raw_images, dest_path)).compute()
 
@@ -150,9 +153,9 @@ def cli():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter,
         description="Converts the raw PNGs into zarr files")
-    parser.add_argument("--raw-images", type=str, help="Path of the raw images", required=True)
-    parser.add_argument("--dest-path", type=str, help="Path of the zarr files to write", required=True)
-    parser.add_argument("--metadata", type=str, help="Path where the metadata files live", required=True)
+    parser.add_argument("--raw-images", type=str, help="Path of the raw images", required=False, default=DEFAULT_IMAGES_BASE_PATH)
+    parser.add_argument("--dest-path", type=str, help="Path of the zarr files to write", required=False, default = DEFAULT_BASE_PATH+'zarr/')
+    parser.add_argument("--metadata", type=str, help="Path where the metadata files live", required=False, default = DEFAULT_METADATA_BASE_PATH)
 
     args = parser.parse_args()
 
