@@ -72,11 +72,11 @@ class RxRx1Dataset(Dataset):
         label = self.labels[idx]
 
         if self.transform:
-            image = self.transform(image)
+            six_channel_image_data = self.transform(six_channel_image_data)
 
         # Normalize the image
-        image = image / 65535.0  # Normalize 16-bit images
-        image = torch.from_numpy(image).permute(2, 0, 1).float()  # Move channels to the first dimension
+        six_channel_image_data = six_channel_image_data / 255  # Normalize 8-bit images
+        six_channel_image_data = six_channel_image_data.from_numpy(image).permute(2, 0, 1).float()  # Move channels to the first dimension
 
         return six_channel_image_data, label
 
@@ -84,8 +84,7 @@ class RxRx1Dataset(Dataset):
 
 metadata_df = pd.read_csv('/fsxl/awsankur/rxrx1/rxrx1/metadata.csv')
 
-image_paths = [...]  # List of paths to your images
-labels = [...]  # List of corresponding labels
+labels = [1] * metadata_df.shape[0]  # List of corresponding labels
 transform = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.RandomVerticalFlip(),
@@ -94,7 +93,6 @@ transform = transforms.Compose([
 
 dataset = RxRx1Dataset(metadata_df,image_paths, labels, transform=transform)
 train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(dataset, batch_size=32, shuffle=False)
 
 # Define the custom ViT model for 6 channels
 class CustomViT(nn.Module):
