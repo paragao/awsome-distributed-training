@@ -116,7 +116,7 @@ Description=Prometheus Exporter
 
 [Service]
 Environment=PATH=/opt/slurm/bin:\$PATH
-ExecStart=/usr/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --enable-feature=agent --storage.agent.path="/opt/prometheus/data-agent"
+ExecStart=/usr/bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path="/opt/prometheus/data"
 Restart=on-failure
 RestartSec=15
 Type=simple
