@@ -7,6 +7,8 @@ import math
 import re
 import time
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
 import numpy as np
 import torch
 from torch import optim
@@ -139,8 +141,8 @@ def train(
             if total_steps >= args.max_steps:
                 break
             
-
-def main(args):
+@hydra.maiin(config_path="conf", config_name="config")
+def main(cfg: DictConfig):
     dist.init_process_group()
     global_rank = dist.get_rank()
     device = global_rank % torch.cuda.device_count()
