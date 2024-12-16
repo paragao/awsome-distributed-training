@@ -13,7 +13,7 @@
 set -euxo pipefail
 
 # default variables for Enroot
-: "${APPS_PATH:=/apps}"
+: "${APPS_PATH:=/fsx}"
 : "${IMAGE:=$APPS_PATH/tensorflow.sqsh}"
 : "${DATA_PATH:=/fsx}"
 : "${FSX_MOUNT:=$DATA_PATH:$DATA_PATH}"

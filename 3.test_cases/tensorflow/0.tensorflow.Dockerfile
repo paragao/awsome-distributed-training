@@ -84,5 +84,3 @@ RUN rm -rf /var/lib/apt/lists/*
 
 RUN echo "hwloc_base_binding_policy = none" >> /opt/amazon/openmpi/etc/openmpi-mca-params.conf \
     && echo "rmaps_base_mapping_policy = slot" >> /opt/amazon/openmpi/etc/openmpi-mca-params.conf
-
-COPY src /src
