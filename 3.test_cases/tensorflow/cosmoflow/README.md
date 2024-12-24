@@ -1,4 +1,5 @@
 # CosmoFlow TensorFlow Keras benchmark implementation
+https://github.com/mlcommons/hpc/tree/main/cosmoflow
 
 This is a an implementation of the
 [CosmoFlow](https://arxiv.org/abs/1808.04728) 3D convolutional neural network
