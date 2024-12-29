@@ -3,7 +3,7 @@ ENROOT_IMAGE=tensorflow
 all: build clean import
 
 build:
-	docker build -t ${ENROOT_IMAGE} -f 0.tensorflow.Dockerfile .
+	docker build -t ${ENROOT_IMAGE} -f tensorflow.Dockerfile .
 
 clean:
 	-rm ${ENROOT_IMAGE}.sqsh

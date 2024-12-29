@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorflow:23.10-tf2-py3
+FROM nvcr.io/nvidia/tensorflow:24.12-tf2-py3
 
 ARG EFA_INSTALLER_VERSION=1.37.0
 ARG AWS_OFI_NCCL_VERSION=v1.13.2-aws
