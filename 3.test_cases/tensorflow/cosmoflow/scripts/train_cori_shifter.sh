@@ -2,6 +2,7 @@
 #SBATCH --nodes=4
 #SBATCH -o logs/%x-%j.out
 #SBATCH -J train-cori
+#SBATCH -D .
 ##SBATCH -C knl
 ##SBATCH -q debug
 ##SBATCH -t 30
@@ -30,4 +31,14 @@ declare -a ARGS=(
     --container-mounts /fsx,/home
 )
 
-srun -l "${ARGS[@]}" python /home/ubuntu/awsome-distributed-training/3.test_cases/tensorflow/cosmoflow/train.py -d $@
+declare -a CMD=(
+    python
+    /home/ubuntu/awsome-distributed-training/3.test_cases/tensorflow/cosmoflow/train.py
+    /workspace/configs/cosmo.yaml
+    --distributed
+    --data-dir /fsx/data/cosmoUniverse_2019_05_4parE_tf_v2_mini
+    --n-train 1024
+    --n-valid 128
+)
+
+srun -l "${ARGS[@]}"  --mpi=pmix  "${CMD[@]}"

@@ -104,6 +104,7 @@ def construct_dataset(file_dir, n_samples, batch_size, n_epochs,
     n_steps = n_samples // (n_file_sets * n_shards * batch_size)
 
     # Find the files
+    print("file dir: ", file_dir)
     filenames = sorted(glob.glob(os.path.join(file_dir, '*.tfrecord')))
     assert (0 <= n_files) and (n_files <= len(filenames)), (
         'Requested %i files, %i available' % (n_files, len(filenames)))

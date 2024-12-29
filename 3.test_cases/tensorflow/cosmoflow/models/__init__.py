@@ -34,4 +34,5 @@ import importlib
 def get_model(name, **model_args):
     """Factory function for constructing a model by name with args"""
     module = importlib.import_module('.' + name, 'models')
+    print("model_args: ", model_args)
     return module.build_model(**model_args)
