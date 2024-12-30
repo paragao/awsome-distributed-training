@@ -52,7 +52,6 @@ def build_model(input_shape, target_size,
         mllogger = mllog.get_mllogger()
         mllogger.event(key=mllog.constants.OPT_WEIGHT_DECAY, value=l2)
         mllogger.event(key='dropout', value=dropout)
-
     conv_args = dict(kernel_size=kernel_size, padding='same')
     hidden_activation = getattr(layers, hidden_activation)
     pooling_type = getattr(layers, pooling_type)

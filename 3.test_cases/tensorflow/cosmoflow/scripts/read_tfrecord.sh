@@ -1,9 +1,8 @@
 #!/bin/bash
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=4
-#SBATCH --exclusive   		# exclusive node access
+#SBATCH --nodes=4
+#SBATCH -J read-tfrecord
 #SBATCH -o logs/%x-%j.out
-#SBATCH -J train-cosmoflow
+#SBATCH -D .
 
 
 : "${IMAGE:=/home/ubuntu/awsome-distributed-training/3.test_cases/tensorflow/cosmoflow/cosmoflow.sqsh}"
@@ -16,26 +15,23 @@ set -euxo pipefail
 
 export FI_PROVIDER=efa
 export FI_EFA_FORK_SAFE=1
+
 ## Set this flag for debugging EFA
 #export FI_LOG_LEVEL=warn
 
 ## NCCL Environment variables
 export NCCL_DEBUG=INFO
-export OPAL_PREFIX=
 
 # variables for Enroot
 declare -a ARGS=(
     --container-image $IMAGE
     --container-mounts /fsx,/home
-    --mpi=pmix
 )
 
 declare -a CMD=(
     python
-    /home/ubuntu/awsome-distributed-training/3.test_cases/tensorflow/cosmoflow/train.py
-    /workspace/configs/cosmo_dummy.yaml
-    --distributed
-    --mlperf
+    /home/ubuntu/awsome-distributed-training/3.test_cases/tensorflow/cosmoflow/utils/read_tfrecord.py
+    /fsx/data/cosmoUniverse_2019_05_4parE_tf_v2_mini/train/21688988_univ_ics_2019-03_a10177483_041.tfrecord
 )
 
-srun -l "${ARGS[@]}"  "${CMD[@]}"
+srun -l "${ARGS[@]}"  --mpi=pmix  "${CMD[@]}"

@@ -62,7 +62,7 @@ from utils.optimizers import get_optimizer, get_lr_schedule
 from utils.callbacks import (TimingCallback, MLPerfLoggingCallback,
                              StopAtTargetCallback)
 from utils.device import configure_session
-from utils.argparse import ReadYaml
+from utils.argparse_util import ReadYaml
 from utils.checkpoints import reload_last_checkpoint
 from utils.mlperf_logging import configure_mllogger, log_submission_info
 
@@ -219,6 +219,7 @@ def main():
     # Initialization
     args = parse_args()
     dist = init_workers(args.distributed)
+    print("dist: ", dist)
     config = load_config(args)
     os.makedirs(config['output_dir'], exist_ok=True)
     config_logging(verbose=args.verbose)
