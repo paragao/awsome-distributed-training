@@ -1,0 +1,5 @@
+git+https://github.com/NVIDIA/mlperf-common
+hydra-core
+mpi4py
+tensorflow
+numpy<2

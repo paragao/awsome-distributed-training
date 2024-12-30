@@ -1,0 +1,57 @@
+#!/bin/bash
+#SBATCH --job-name init_datasets-cosmoflow
+#SBATCH --output logs/%x-%j.out
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2020-2023 NVIDIA CORPORATION. All rights reserved.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of
+# this software and associated documentation files (the "Software"), to deal in
+# the Software without restriction, including without limitation the rights to
+# use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+# the Software, and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+# FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+# IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+
+set -euxo pipefail
+
+export RANKS_PER_NODE=1
+
+
+declare -a ARGS=(
+    --container-image /fsx/images/cosmoflow-preprocessor.sqsh
+    --container-mounts /fsx:/fsx
+    --ntasks=$(( ${SLURM_JOB_NUM_NODES} * ${RANKS_PER_NODE} ))
+    --ntasks-per-node=${RANKS_PER_NODE}
+     --container-workdir /workspace/cosmoflow
+     --mpi=pmix
+)
+
+declare -a PREPROCESS_TRAIN_CMD=(
+    python
+    tools/convert_tfrecord_to_numpy.py
+    -i /fsx/data/cosmoUniverse_2019_05_4parE_tf_v2_mini.gzip
+    -o /fsx/data/cosmoUniverse_2019_05_4parE_tf_v2_mini_processed/train
+    -c gzip
+)
+
+# run the conversion for training data
+srun "${ARGS[@]}" "${PREPROCESS_TRAIN_CMD[@]}"
+
+## now on validation data
+#srun --mpi=pmix --ntasks=$(( ${SLURM_JOB_NUM_NODES} * ${RANKS_PER_NODE} )) --ntasks-per-node=${RANKS_PER_NODE} \
+#     --container-name=${_cont_name} --container-mounts="${_cont_mounts}" \
+#     --container-workdir /workspace \
+#     python /opt/utils/convert_hdf52npy.py \
+#     --input_directory=/data_in/validation \
+#     --output_directory=/data_out/validation
