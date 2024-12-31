@@ -34,8 +34,8 @@ model:
 
 data:
   batch_size: 1
-  train_samples: 256
-  valid_samples: 64
+  train_samples: 524288
+  valid_samples: 65536
   dataset: "synthetic"
 
   apply_log: True
