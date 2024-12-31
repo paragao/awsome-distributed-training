@@ -28,7 +28,7 @@ readonly local_rank="${LOCAL_RANK:=${SLURM_LOCALID:=${OMPI_COMM_WORLD_LOCAL_RANK
 DGXNGPU=${DGXNGPU:-8}
 
 SLURM_NTASKS_PER_NODE=${SLURM_NTASKS_PER_NODE:-$DGXNGPU}
-CONFIG_FILE=/workspace/cosmoflow/configs/baseline.yaml
+CONFIG_FILE=baseline.yaml
 NUM_INSTANCES=${NUM_INSTANCES:-1}
 
 ## Set libfabric flags to use EFA

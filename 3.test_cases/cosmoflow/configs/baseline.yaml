@@ -46,6 +46,8 @@ data:
 
   root_dir: "/data"
   stage: "/tmp"
+  stage_mode: "thread"
+  stage_workers: 32
 
   sample_shape: [128, 128, 128, 4]
   target_shape: [4]
