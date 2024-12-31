@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name mlperf-hpc:cosmoflow_ref
-#SBATCH --nodes=2
+#SBATCH --nodes=4
 #SBATCH --ntasks-per-node=8
 #SBATCH --exclusive
 
