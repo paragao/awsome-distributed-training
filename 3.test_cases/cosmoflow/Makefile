@@ -3,7 +3,7 @@ IMAGE=cosmoflow
 all: build clean import
 
 build:
-	docker build -t ${IMAGE} -f cosmoflow.Dockerfile .
+	docker build --progress=plain -t ${IMAGE} -f cosmoflow.Dockerfile .
 
 clean:
 	-rm /fsx/images/${IMAGE}.sqsh

@@ -28,8 +28,31 @@ readonly local_rank="${LOCAL_RANK:=${SLURM_LOCALID:=${OMPI_COMM_WORLD_LOCAL_RANK
 DGXNGPU=${DGXNGPU:-8}
 
 SLURM_NTASKS_PER_NODE=${SLURM_NTASKS_PER_NODE:-$DGXNGPU}
-CONFIG_FILE=${CONFIG_FILE}
+CONFIG_FILE=/workspace/cosmoflow/configs/baseline.yaml
 NUM_INSTANCES=${NUM_INSTANCES:-1}
+
+## Set libfabric flags to use EFA
+export FI_PROVIDER=efa
+export FI_EFA_USE_DEVICE_RDMA=1 # use for p4d
+export FI_EFA_FORK_SAFE=1
+
+## Set this flag for debugging EFA
+#export FI_LOG_LEVEL=warn
+
+## NCCL Environment variables
+export NCCL_DEBUG=INFO
+
+### Increase the send queue depth and can turn NCCL communications into non-blocking.
+### https://www.usenix.org/system/files/atc23-choi.pdf
+export NCCL_BUFFSIZE=8388608
+### Improve performance by increasing buffer size for Send/Recv, Gather, Scatter and Alltoall communications
+### https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/p2p.html
+export NCCL_P2P_NET_CHUNKSIZE=524288
+
+### Improve performance for AllReduce by selecting specific protocol and algorithm for specific
+### message size and number of ranks.
+### More information https://github.com/aws/aws-ofi-nccl/wiki/Algorithm-and-Protocol-Tuner-for-AWS.
+export NCCL_TUNER_PLUGIN=/opt/aws-ofi-nccl/install/lib/libnccl-ofi-tuner.so
 
 
 PROFILE=${PROFILE:-0}
@@ -37,7 +60,6 @@ PROFILE_EXCEL=${PROFILE_EXCEL:-0}
 CUDA_PROFILER_RANGE=${CUDA_PROFILER_RANGE:-""}
 
 SEED=${SEED:-0}
-ENABLE_IB_BINDING=${ENABLE_IB_BINDING:-1}
 
 PROFILE_ALL_LOCAL_RANKS=${PROFILE_ALL_LOCAL_RANKS:-0}
 THR="0.124"
@@ -118,12 +140,6 @@ if [[ ${PROFILE} -ge 1 ]]; then
     fi
 fi
 
-IB_BIND=''
-if [[ "${SLURM_JOB_NUM_NODES}" -gt 1 && "${ENABLE_IB_BINDING}" -eq 1 ]]; then
-  IB_BIND='--ib=single'
-fi
-BIND="bindpcie --cpu=exclusive ${IB_BIND} --"
-
 if [ "$LOGGER" = "apiLog.sh" ];
 then
   LOGGER="${LOGGER} -p MLPerf/${MODEL_NAME} -v ${FRAMEWORK}/train/${DGXSYSTEM}"
@@ -138,9 +154,9 @@ then
 fi
 
 if [[ ${PROFILE} -ge 1 ]]; then
-    TMPDIR=/results ${DISTRIBUTED} ${BIND} ${PROFILE_COMMAND} python main.py "${PARAMS[@]}" "$@"; ret_code=$?
+    TMPDIR=/results ${DISTRIBUTED} ${PROFILE_COMMAND} python main.py "${PARAMS[@]}" "$@"; ret_code=$?
 else
-    ${LOGGER:-} ${DISTRIBUTED} ${BIND} python main.py "${PARAMS[@]}" "$@"; ret_code=$?
+    ${LOGGER:-} ${DISTRIBUTED} python main.py "${PARAMS[@]}" "$@"; ret_code=$?
 fi
 
 sleep 3

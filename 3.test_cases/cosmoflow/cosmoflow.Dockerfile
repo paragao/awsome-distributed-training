@@ -1,128 +1,229 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
 
-ARG FROM_IMAGE_NAME=nvcr.io/nvidia/pytorch:23.09-py3
+####################################################################################################
+# This is a sample Dockerfile, with optional stanzas. Please read through this Dockerfile,
+# understand what it does, then create your own Dockerfile.
+#
+# Sample build instructions:
+#
+#     docker build --progress=plain -t nvidia-pt-od:latest -f 0.nvcr-pytorch-aws.dockerfile .
+#     rm /fsx/nvidia-pt-od__latest.sqsh ; enroot import -o /fsx/nvidia-pt-od__latest.sqsh dockerd://nvidia-pt-od:latest
+#
+# Compute nodes (aka build nodes) are transient, so we need to keep the docker image on shared fs,
+# which head node can load into its local registry.
+#
+#     # Build node: save image to file
+#     docker save nvidia-pt-od:latest > /fsx/nvidia-pt-od__latest.tar
+#
+#     # Load image to local docker registry -> on head node, or new compute/build node.
+#     docker load < /fsx/nvidia-pt-od__latest.tar
+####################################################################################################
+FROM nvcr.io/nvidia/pytorch:24.09-py3
+ENV DEBIAN_FRONTEND=noninteractive
 
-FROM ${FROM_IMAGE_NAME}
-ARG GDRCOPY_VERSION=v2.4.1
-ARG EFA_INSTALLER_VERSION=1.37.0
-ARG AWS_OFI_NCCL_VERSION=v1.13.2-aws
-ARG NCCL_VERSION=v2.23.4-1
-ARG NCCL_TESTS_VERSION=v2.13.10
+# The three must-be-built packages.
+# Efa-installer>=1.29.1 required for nccl>=2.19.0 to avoid libfabric NCCL error.
+ENV EFA_INSTALLER_VERSION=1.35.0
+ENV AWS_OFI_NCCL_VERSION=1.12.1-aws
+ENV NCCL_TESTS_VERSION=master
 
-RUN apt-get update -y && apt-get upgrade -y
+## Uncomment below when this Dockerfile builds a container image with efa-installer<1.29.1 and
+# nccl>=2.19.0. See https://github.com/aws-samples/awsome-distributed-training/tree/main/1.architectures/efa-cheatsheet.md
+#ENV FI_EFA_SET_CUDA_SYNC_MEMOPS=0
+
+RUN apt-get update -y
 RUN apt-get remove -y --allow-change-held-packages \
-    ibverbs-utils \
-    libibverbs-dev \
-    libibverbs1 \
-    libmlx5-1 \
-    libnccl2 \
-    libnccl-dev
-    RUN rm -rf /opt/hpcx \
+                      libmlx5-1 ibverbs-utils libibverbs-dev libibverbs1
+
+# We noticed that since 23.09, we can't just delete the whole /opt/hpcx/, otherwise `import torch`
+# complains about missing libuc?.so.
+RUN rm -rf /opt/hpcx/ompi \
     && rm -rf /usr/local/mpi \
-    && rm -f /etc/ld.so.conf.d/hpcx.conf \
+    && rm -rf /opt/hpcx/nccl_rdma_sharp_plugin \
     && ldconfig
-
 ENV OPAL_PREFIX=
-
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
-    apt-utils \
-    autoconf \
-    automake \
-    build-essential \
-    check \
-    cmake \
-    curl \
-    debhelper \
-    devscripts \
     git \
     gcc \
-    gdb \
+    vim \
     kmod \
-    libsubunit-dev \
-    libtool \
     openssh-client \
     openssh-server \
-    pkg-config \
-    python3-distutils \
-    vim
-RUN apt-get purge -y cuda-compat-*
+    build-essential \
+    curl \
+    autoconf \
+    libtool \
+    gdb \
+    automake \
+    cmake \
+    apt-utils \
+    libhwloc-dev \
+    aptitude && \
+    DEBIAN_FRONTEND=noninteractive apt autoremove -y
 
-RUN mkdir -p /var/run/sshd
-RUN sed -i 's/[ #]\(.*StrictHostKeyChecking \).*/ \1no/g' /etc/ssh/ssh_config && \
-    echo "    UserKnownHostsFile /dev/null" >> /etc/ssh/ssh_config && \
-    sed -i 's/#\(StrictModes \).*/\1no/g' /etc/ssh/sshd_config
+# EFA
+RUN apt-get update && \
+    cd /tmp && \
+    curl -O https://efa-installer.amazonaws.com/aws-efa-installer-${EFA_INSTALLER_VERSION}.tar.gz  && \
+    tar -xf aws-efa-installer-${EFA_INSTALLER_VERSION}.tar.gz && \
+    cd aws-efa-installer && \
+    # ONLY add `--skip-kmod`, `--no-verify` and `--skip-limit-conf` flags to container image.
+    # Those three flags must NOT be used on the host.
+    #
+    # Explanations:
+    # - to build EFA in the Dockerfile, we added --skip-kmod and --no-verify. Without these flags,
+    #   the Dockerfile will fail to build. If installing EFA on the host and not in a container,
+    #   please remove these flags.
+    # - The --skip-limit-conf can be retained in Dockerfile, but it's redundant as the host already
+    #   has these limits set by efa_installer.
+    ./efa_installer.sh -y -g -d --skip-kmod --no-verify --skip-limit-conf && \
+    ldconfig && \
+    rm -rf /tmp/aws-efa-installer /var/lib/apt/lists/*
+ENV LD_LIBRARY_PATH=/opt/amazon/efa/lib:$LD_LIBRARY_PATH
+ENV PATH=/opt/amazon/efa/bin:/opt/amazon/openmpi/bin:$PATH
 
-ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:/opt/amazon/openmpi/lib:/opt/nccl/build/lib:/opt/amazon/efa/lib:/opt/aws-ofi-nccl/install/lib:/usr/local/lib:$LD_LIBRARY_PATH
-ENV PATH /opt/amazon/openmpi/bin/:/opt/amazon/efa/bin:/usr/bin:/usr/local/bin:$PATH
 
-#################################################
-## Install NVIDIA GDRCopy
-##
-## NOTE: if `nccl-tests` or `/opt/gdrcopy/bin/sanity -v` crashes with incompatible version, ensure
-## that the cuda-compat-xx-x package is the latest.
-RUN git clone -b ${GDRCOPY_VERSION} https://github.com/NVIDIA/gdrcopy.git /tmp/gdrcopy \
-    && cd /tmp/gdrcopy \
-    && make prefix=/opt/gdrcopy install
+####################################################################################################
+# [CUSTOM_NCCL_OPTION_1] Uncomment below stanza to install another NCCL version using the official
+# binaries.
+#
+# NCCL EFA plugin (aws-ofi-nccl) depends on mpi, hence we must rebuild openmpi before building the
+# aws-ofi-ccnl.
+####################################################################################################
+#ENV NCCL_VERSION=2.19.3-1
+#RUN cd /opt && \
+#    wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.0-1_all.deb && \
+#    dpkg -i cuda-keyring_1.0-1_all.deb && \
+#    apt update && \
+#    apt install -y libnccl2==${NCCL_VERSION} libnccl-dev==${NCCL_VERSION} && \
+#    echo NCCL_SOCKET_IFNAME=^docker0,lo >> /etc/nccl.conf
 
-ENV LD_LIBRARY_PATH /opt/gdrcopy/lib:$LD_LIBRARY_PATH
-ENV LIBRARY_PATH /opt/gdrcopy/lib:$LIBRARY_PATH
-ENV CPATH /opt/gdrcopy/include:$CPATH
-ENV PATH /opt/gdrcopy/bin:$PATH
 
-#################################################
-## Install EFA installer
-RUN cd $HOME \
-    && curl -O https://efa-installer.amazonaws.com/aws-efa-installer-${EFA_INSTALLER_VERSION}.tar.gz \
-    && tar -xf $HOME/aws-efa-installer-${EFA_INSTALLER_VERSION}.tar.gz \
-    && cd aws-efa-installer \
-    && ./efa_installer.sh -y -g -d --skip-kmod --skip-limit-conf --no-verify \
-    && rm -rf $HOME/aws-efa-installer
+####################################################################################################
+# [CUSTOM_NCCL_OPTION_2] Install NCCL from source to the same location as the built-in ones. The
+# benefits of installing to the same location as the built-in version are:
+#
+# 1. There's only ever a single libnccl version offered by this image, preventing application from
+#    mistakenly chooses a wrong version.
+# 2. No longer needing extra settings for LD_LIBRARY_PATH or LD_PRELOAD.
+#
+# NCCL EFA plugin (aws-ofi-nccl) depends on mpi, hence we must rebuild openmpi before building the
+# aws-ofi-ccnl.
+####################################################################################################
+ENV NCCL_VERSION=2.19.3-1
+RUN apt-get remove -y libnccl2 libnccl-dev \
+   && cd /tmp \
+   && git clone https://github.com/NVIDIA/nccl.git -b v${NCCL_VERSION} \
+   && cd nccl \
+   && make -j src.build BUILDDIR=/usr \
+   # Build for p4 & p5.
+   NVCC_GENCODE="-gencode=arch=compute_90,code=sm_90, -gencode=arch=compute_80,code=sm_80" \
+   && rm -rf /tmp/nccl \
+   && echo NCCL_SOCKET_IFNAME=^docker0,lo >> /etc/nccl.conf
 
-###################################################
-## Install NCCL
-RUN git clone -b ${NCCL_VERSION} https://github.com/NVIDIA/nccl.git  /opt/nccl \
-    && cd /opt/nccl \
-    && make -j $(nproc) src.build CUDA_HOME=/usr/local/cuda \
-    NVCC_GENCODE="-gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_89,code=sm_89 -gencode=arch=compute_90,code=sm_90"
 
-###################################################
-## Install AWS-OFI-NCCL plugin
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y libhwloc-dev
-#Switch from sh to bash to allow parameter expansion
-SHELL ["/bin/bash", "-c"]
-RUN curl -OL https://github.com/aws/aws-ofi-nccl/releases/download/${AWS_OFI_NCCL_VERSION}/aws-ofi-nccl-${AWS_OFI_NCCL_VERSION//v}.tar.gz \
-    && tar -xf aws-ofi-nccl-${AWS_OFI_NCCL_VERSION//v}.tar.gz \
-    && cd aws-ofi-nccl-${AWS_OFI_NCCL_VERSION//v} \
-    && ./configure --prefix=/opt/aws-ofi-nccl/install \
-        --with-mpi=/opt/amazon/openmpi \
+####################################################################################################
+# Rebuild OpenMPI with custom PMIX version. E.g., to match what host's Slurm is built with (see
+# /opt/pmix/ on host, or run pmix_info on host).
+#
+# May be needed on rare occassions when `srun --mpi=pmix --container-image=... <mpi_application>`
+# mysteriously crashes.
+#
+# NCCL EFA plugin (aws-ofi-nccl) depends on mpi, hence we must rebuild openmpi before building the
+# aws-ofi-ccnl.
+####################################################################################################
+ENV OPEN_MPI_PATH=/opt/amazon/openmpi
+
+# OpenMPI build script claims PMIX_VERSION, and complains if we use it.
+ENV CUSTOM_PMIX_VERSION=4.2.6
+RUN apt-get update && apt-get install -y libevent-dev \
+    && cd /tmp \
+    && wget https://github.com/openpmix/openpmix/releases/download/v${CUSTOM_PMIX_VERSION}/pmix-${CUSTOM_PMIX_VERSION}.tar.gz \
+    && tar -xzf pmix-${CUSTOM_PMIX_VERSION}.tar.gz \
+    && rm pmix-${CUSTOM_PMIX_VERSION}.tar.gz \
+    && cd pmix-${CUSTOM_PMIX_VERSION}/ \
+    && ./autogen.pl \
+    && ./configure --prefix=/opt/pmix \
+    && make -j \
+    && make install \
+    && echo /opt/pmix/lib > /etc/ld.so.conf.d/pmix.conf \
+    && ldconfig \
+    && cd / \
+    && rm -fr /tmp/pmix-${CUSTOM_PMIX_VERSION}/
+# To silence this runtime error message:
+# [p4de-st-p4de-2:110912] PMIX ERROR: ERROR in file gds_ds12_lock_pthread.c at line 168
+ENV PMIX_GDS_MODULE=^ds12 \
+    PMIX_MCA_gds=^ds12
+
+# Rebuild openmpi with DLC style (which it remarks as "without libfabric"), with the above pmix.
+ENV OMPI_VERSION=4.1.6
+RUN rm -fr ${OPEN_MPI_PATH} \
+ && mkdir /tmp/openmpi \
+ && cd /tmp/openmpi \
+ && wget --quiet https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-${OMPI_VERSION}.tar.gz \
+ && tar zxf openmpi-${OMPI_VERSION}.tar.gz \
+ && rm openmpi-${OMPI_VERSION}.tar.gz \
+ && cd openmpi-${OMPI_VERSION} \
+ && ./configure --enable-orterun-prefix-by-default --prefix=$OPEN_MPI_PATH --with-cuda=${CUDA_HOME} --with-slurm --with-pmix=/opt/pmix \
+ && make -j $(nproc) all \
+ && make install \
+ && ldconfig \
+ && cd / \
+ && rm -rf /tmp/openmpi \
+ && ompi_info --parsable --all | grep mpi_built_with_cuda_support:value \
+ # Verify pmix from /opt/pmix/
+ && ldd /opt/amazon/openmpi/lib/openmpi/mca_pmix_ext3x.so | grep '/opt/pmix/lib/libpmix.so.* ' > /opt/amazon/openmpi-pmix.txt
+####################################################################################################
+
+
+# NCCL EFA Plugin
+RUN mkdir -p /tmp && \
+    cd /tmp && \
+    curl -LO https://github.com/aws/aws-ofi-nccl/archive/refs/tags/v${AWS_OFI_NCCL_VERSION}.tar.gz && \
+    tar -xzf /tmp/v${AWS_OFI_NCCL_VERSION}.tar.gz && \
+    rm /tmp/v${AWS_OFI_NCCL_VERSION}.tar.gz && \
+    mv aws-ofi-nccl-${AWS_OFI_NCCL_VERSION} aws-ofi-nccl && \
+    cd /tmp/aws-ofi-nccl && \
+    ./autogen.sh && \
+    ./configure --prefix=/opt/amazon/efa \
         --with-libfabric=/opt/amazon/efa \
         --with-cuda=/usr/local/cuda \
         --enable-platform-aws \
-    && make -j $(nproc) \
-    && make install \
-    && cd .. \
-    && rm -rf aws-ofi-nccl-${AWS_OFI_NCCL_VERSION//v} \
-    && rm aws-ofi-nccl-${AWS_OFI_NCCL_VERSION//v}.tar.gz
+        --with-mpi=/opt/amazon/openmpi && \
+    make -j$(nproc) install && \
+    rm -rf /tmp/aws-ofi/nccl
 
-ENV TZ=Etc/UTC
-ENV DEBIAN_FRONTEND=noninteractive
+# Do this to minimize the ld path env vars that users need to define when running this image.
+RUN echo "/usr/local/lib"      >> /etc/ld.so.conf.d/local.conf && \
+    echo "/opt/amazon/openmpi/lib" >> /etc/ld.so.conf.d/efa.conf && \
+    ldconfig
+
+ENV OMPI_MCA_pml=^cm,ucx            \
+    OMPI_MCA_btl=tcp,self           \
+    OMPI_MCA_btl_tcp_if_exclude=lo,docker0 \
+    OPAL_PREFIX=/opt/amazon/openmpi \
+    # https://discuss.pytorch.org/t/nccl-network-is-unreachable-connection-refused-when-initializing-ddp/137352
+    # https://github.com/pytorch/pytorch/issues/68893
+    NCCL_SOCKET_IFNAME=^docker,lo
+
+ENV LD_LIBRARY_PATH="/usr/local/lib:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+
+# NCCL-tests: always good to include this as a diagnostic tool.
+RUN git clone https://github.com/NVIDIA/nccl-tests.git /opt/nccl-tests \
+    && cd /opt/nccl-tests \
+    && git checkout ${NCCL_TESTS_VERSION} \
+    && make MPI=1 \
+    MPI_HOME=/opt/amazon/openmpi \
+    CUDA_HOME=/usr/local/cuda \
+    NVCC_GENCODE="-gencode=arch=compute_90,code=sm_90 -gencode=arch=compute_80,code=sm_80"
+
 RUN apt-get update \
-       && apt-get install -y --no-install-recommends \
-       libboost-dev libboost-python-dev libboost-numpy-dev libboost-iostreams-dev libaio-dev \
-       && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends \
+    libboost-dev libboost-python-dev libboost-numpy-dev libboost-iostreams-dev libaio-dev \
+    && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /workspace
 COPY utils/csrc .
 RUN mkdir build; cd build; cmake ..; make -j8
 
@@ -148,3 +249,17 @@ RUN pip install "git+https://github.com/mlcommons/logging.git@hpc-3.0.0" \
 
 # Copy Cosmoflow code
 COPY . .
+RUN cp /workspace/build/libCosmoflowExt.so /workspace/cosmoflow/utils
+
+## Set Open MPI variables to exclude network interface and conduit.
+ENV OMPI_MCA_pml=^cm,ucx            \
+    OMPI_MCA_btl=tcp,self           \
+    OMPI_MCA_btl_tcp_if_exclude=lo,docker0,veth_def_agent\
+    OPAL_PREFIX=/opt/amazon/openmpi \
+    NCCL_SOCKET_IFNAME=^docker,lo,veth_def_agent,eth
+
+## Turn off PMIx Error https://github.com/open-mpi/ompi/issues/7516
+ENV PMIX_MCA_gds=hash
+
+## Set LD_PRELOAD for NCCL library
+#ENV LD_PRELOAD /opt/nccl/build/lib/libnccl.so

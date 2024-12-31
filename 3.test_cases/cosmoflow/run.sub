@@ -1,5 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name mlperf-hpc:cosmoflow_ref
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=8
+#SBATCH --exclusive
 
 # Copyright (c) 2021-2023 NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +23,8 @@ set -euxo pipefail
 # Vars without defaults
 : "${DGXSYSTEM:=DGXA100}"
 : "${DGXNGPU:=8}"
-: "${CONT:?CONT not set}"
+: "${CONT:=/fsx/images/cosmoflow.sqsh}"
+: "${DATADIR:=/fsx/data}"
 
 # Vars with defaults
 : "${MLPERF_RULESET:=3.0.0}"
@@ -44,6 +48,8 @@ set -euxo pipefail
 : "${SET_MAXQ_CLK:=0}"
 : "${SET_MINEDP_CLK:=0}"
 
+export DGXNNODES=$(( SLURM_JOB_NUM_NODES ))
+export DGXNGPU=8
 
 
 # pyxis sometimes leaves containers lying around which can really confuse things:
