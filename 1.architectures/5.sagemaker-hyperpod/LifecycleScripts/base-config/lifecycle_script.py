@@ -32,6 +32,7 @@ class ExecuteBashScript:
         print(f"Script {self.script_name} executed successully")
 
 
+
 class ResourceConfig:
     INSTANCE_GROUP_NAME = "Name"
     INSTANCE_NAME = "InstanceName"
