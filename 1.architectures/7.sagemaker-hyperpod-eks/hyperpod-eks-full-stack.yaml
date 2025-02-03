@@ -174,20 +174,20 @@ Resources:
       CidrBlock: !Ref PrivateSubnet1CIDR
       AmazonProvidedIpv6CidrBlock: false
 
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-    Condition: CreateEKSCluster
-    Properties:
-      Tags:
-        - Key: Name
-          Value: !Sub ${ResourceNamePrefix}-igw
+  # InternetGateway:
+  #   Type: AWS::EC2::InternetGateway
+  #   Condition: CreateEKSCluster
+  #   Properties:
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${ResourceNamePrefix}-igw
 
-  InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Condition: CreateEKSCluster
-    Properties:
-      InternetGatewayId: !Ref InternetGateway
-      VpcId: !Ref VPC
+  # InternetGatewayAttachment:
+  #   Type: AWS::EC2::VPCGatewayAttachment
+  #   Condition: CreateEKSCluster
+  #   Properties:
+  #     InternetGatewayId: !Ref InternetGateway
+  #     VpcId: !Ref VPC
 
   PublicSubnet1:
     Type: AWS::EC2::Subnet
@@ -279,33 +279,33 @@ Resources:
         - Key: Name
           Value: !Sub ${ResourceNamePrefix} EKS Cluster Private Subnet 3
 
-  NatGateway1EIP:
-    Type: AWS::EC2::EIP
-    Condition: CreateEKSCluster
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      Domain: vpc
+  # NatGateway1EIP:
+  #   Type: AWS::EC2::EIP
+  #   Condition: CreateEKSCluster
+  #   DependsOn: InternetGatewayAttachment
+  #   Properties:
+  #     Domain: vpc
 
-  NatGateway2EIP:
-    Type: AWS::EC2::EIP
-    Condition: CreateEKSCluster
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      Domain: vpc
+  # NatGateway2EIP:
+  #   Type: AWS::EC2::EIP
+  #   Condition: CreateEKSCluster
+  #   DependsOn: InternetGatewayAttachment
+  #   Properties:
+  #     Domain: vpc
 
-  NatGateway1:
-    Type: AWS::EC2::NatGateway
-    Condition: CreateEKSCluster
-    Properties:
-      AllocationId: !GetAtt NatGateway1EIP.AllocationId
-      SubnetId: !Ref PublicSubnet1
+  # NatGateway1:
+  #   Type: AWS::EC2::NatGateway
+  #   Condition: CreateEKSCluster
+  #   Properties:
+  #     AllocationId: !GetAtt NatGateway1EIP.AllocationId
+  #     SubnetId: !Ref PublicSubnet1
 
-  NatGateway2:
-    Type: AWS::EC2::NatGateway
-    Condition: CreateEKSCluster
-    Properties:
-      AllocationId: !GetAtt NatGateway2EIP.AllocationId
-      SubnetId: !Ref PublicSubnet2
+  # NatGateway2:
+  #   Type: AWS::EC2::NatGateway
+  #   Condition: CreateEKSCluster
+  #   Properties:
+  #     AllocationId: !GetAtt NatGateway2EIP.AllocationId
+  #     SubnetId: !Ref PublicSubnet2
 
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
@@ -316,14 +316,14 @@ Resources:
         - Key: Name
           Value: !Sub ${ResourceNamePrefix} Public Routes
 
-  DefaultPublicRoute:
-    Type: AWS::EC2::Route
-    Condition: CreateEKSCluster
-    DependsOn: InternetGatewayAttachment
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+  # DefaultPublicRoute:
+  #   Type: AWS::EC2::Route
+  #   Condition: CreateEKSCluster
+  #   DependsOn: InternetGatewayAttachment
+  #   Properties:
+  #     RouteTableId: !Ref PublicRouteTable
+  #     DestinationCidrBlock: 0.0.0.0/0
+  #     GatewayId: !Ref InternetGateway
 
   PublicSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -358,16 +358,16 @@ Resources:
         - Key: Name
           Value: !Sub ${ResourceNamePrefix} Private Routes (AZ1)
 
-  DefaultPrivateRoute1:
-    Type: AWS::EC2::Route
-    Condition: EKSOrSubnet
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !If
-        - CreateEKSCluster
-        - !Ref NatGateway1
-        - !Ref NatGatewayId
+  # DefaultPrivateRoute1:
+  #   Type: AWS::EC2::Route
+  #   Condition: EKSOrSubnet
+  #   Properties:
+  #     RouteTableId: !Ref PrivateRouteTable
+  #     DestinationCidrBlock: 0.0.0.0/0
+  #     NatGatewayId: !If
+  #       - CreateEKSCluster
+  #       - !Ref NatGateway1
+  #       - !Ref NatGatewayId
 
   PrivateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -515,6 +515,8 @@ Resources:
            - !Ref EKSPrivateSubnet3
         SecurityGroupIds: 
           - !Ref NoIngressSecurityGroup
+        EndpointPublicAccess: true
+        EndpointPrivateAccess: true
 
 
   VpcCNIAddOn:
@@ -612,31 +614,142 @@ Resources:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
 
-  S3Endpoint:
+  # S3Endpoint:
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Condition: EKSOrSubnet
+  #   Properties:
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #           - Effect: Allow
+  #             Principal: '*'
+  #             Action:
+  #               - '*'
+  #             Resource:
+  #               - '*'
+  #     RouteTableIds:
+  #       - !Ref PublicRouteTable
+  #       - !Ref PrivateRouteTable
+  #     ServiceName: !Join
+  #       - ''
+  #       - - com.amazonaws.
+  #         - !Ref AWS::Region
+  #         - .s3
+  #     VpcId: !If 
+  #       - CreateEKSCluster
+  #       - !Ref VPC
+  #       - !Ref VpcId
+
+  S3VPCEndpoint:
     Type: AWS::EC2::VPCEndpoint
-    Condition: EKSOrSubnet
     Properties:
-      PolicyDocument:
-        Version: 2012-10-17
-        Statement:
-            - Effect: Allow
-              Principal: '*'
-              Action:
-                - '*'
-              Resource:
-                - '*'
-      RouteTableIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
-      ServiceName: !Join
-        - ''
-        - - com.amazonaws.
-          - !Ref AWS::Region
-          - .s3
       VpcId: !If 
         - CreateEKSCluster
         - !Ref VPC
         - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      RouteTableIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      VpcEndpointType: Gateway
+
+  ECRVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
+      SubnetIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  ECRDockerVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
+      SubnetIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  SSMVPCVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      SubnetIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  SSMEC2MessagesVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      SubnetIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  SSMMessagesVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      SubnetIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  STSVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.sts
+      SubnetIds:
+        - !Ref PublicRouteTable
+        - !Ref PrivateRouteTable
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+
 
 Outputs:
   VPC:
