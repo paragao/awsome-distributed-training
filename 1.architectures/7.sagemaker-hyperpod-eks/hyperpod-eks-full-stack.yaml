@@ -662,8 +662,7 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.api
       SubnetIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref NoIngressSecurityGroup
       VpcEndpointType: Interface
@@ -678,8 +677,7 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ecr.dkr
       SubnetIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref NoIngressSecurityGroup
       VpcEndpointType: Interface
@@ -694,8 +692,7 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
       SubnetIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref NoIngressSecurityGroup
       VpcEndpointType: Interface
@@ -710,8 +707,7 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
       SubnetIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref NoIngressSecurityGroup
       VpcEndpointType: Interface
@@ -726,8 +722,7 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
       SubnetIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref NoIngressSecurityGroup
       VpcEndpointType: Interface
@@ -742,8 +737,7 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.sts
       SubnetIds:
-        - !Ref PublicRouteTable
-        - !Ref PrivateRouteTable
+        - !Ref PrivateSubnet1
       SecurityGroupIds:
         - !Ref NoIngressSecurityGroup
       VpcEndpointType: Interface
