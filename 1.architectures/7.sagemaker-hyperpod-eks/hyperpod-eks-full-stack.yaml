@@ -728,6 +728,21 @@ Resources:
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
 
+  EC2VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2
+      SubnetIds:
+        - !Ref PrivateSubnet1
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+   
   STSVPCEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
