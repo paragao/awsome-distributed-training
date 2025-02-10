@@ -3,7 +3,8 @@
 class Config:
 
     # Default is true to install Docker/Enroot/Pyxis.
-    enable_docker_enroot_pyxis = True
+    # Disabling for closed-network
+    enable_docker_enroot_pyxis = False
 
     # Set true if you want to install metric exporter software and Prometheus for observability
     # DCGM Exporter and EFA Node Exporter are installed on compute nodes,
