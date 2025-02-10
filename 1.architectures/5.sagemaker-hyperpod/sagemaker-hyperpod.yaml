@@ -218,27 +218,27 @@ Resources:
       ResourceType: VPC
       TrafficType: ALL
 
-  # Create an IGW and add it to the VPC
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
+  # # Create an IGW and add it to the VPC
+  # InternetGateway:
+  #   Type: AWS::EC2::InternetGateway
 
-  GatewayToInternet:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref VPC
-      InternetGatewayId: !Ref InternetGateway
+  # GatewayToInternet:
+  #   Type: AWS::EC2::VPCGatewayAttachment
+  #   Properties:
+  #     VpcId: !Ref VPC
+  #     InternetGatewayId: !Ref InternetGateway
 
-  # Create a NAT GW then add it to the public subnet
-  NATGateway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt ElasticIP.AllocationId
-      SubnetId: !Ref PublicSubnet
+  # # Create a NAT GW then add it to the public subnet
+  # NATGateway:
+  #   Type: AWS::EC2::NatGateway
+  #   Properties:
+  #     AllocationId: !GetAtt ElasticIP.AllocationId
+  #     SubnetId: !Ref PublicSubnet
 
-  ElasticIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
+  # ElasticIP:
+  #   Type: AWS::EC2::EIP
+  #   Properties:
+  #     Domain: vpc
 
   # NOTE: when you create additional security groups, you must ensure that every
   # security group has ingress/egress from/to its own security group id. Failure
@@ -325,12 +325,12 @@ Resources:
     Properties:
       VpcId: !Ref VPC
 
-  PublicRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PublicRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
+  # PublicRoute:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     RouteTableId: !Ref PublicRouteTable
+  #     DestinationCidrBlock: 0.0.0.0/0
+  #     GatewayId: !Ref InternetGateway
 
   # Then the private route table
   PrivateRouteTable:
@@ -338,12 +338,12 @@ Resources:
     Properties:
       VpcId: !Ref VPC
 
-  PrivateRouteToInternet:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NATGateway
+  # PrivateRouteToInternet:
+  #   Type: AWS::EC2::Route
+  #   Properties:
+  #     RouteTableId: !Ref PrivateRouteTable
+  #     DestinationCidrBlock: 0.0.0.0/0
+  #     NatGatewayId: !Ref NATGateway
 
   # Associate the public route table to the public subnet
   PublicSubnetRouteTableAssociation:
