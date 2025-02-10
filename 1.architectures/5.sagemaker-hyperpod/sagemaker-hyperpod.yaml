@@ -367,29 +367,100 @@ Resources:
       SubnetId: !Ref BackupPrivateSubnet
       RouteTableId: !Ref PrivateRouteTable
 
-  # S3 endpoint
-  S3Endpoint:
-    Condition: S3EndpointCondition
+  # # S3 endpoint
+  # S3Endpoint:
+  #   Condition: S3EndpointCondition
+  #   Type: AWS::EC2::VPCEndpoint
+  #   Properties:
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #           - Effect: Allow
+  #             Principal: '*'
+  #             Action:
+  #               - '*'
+  #             Resource:
+  #               - '*'
+  #     RouteTableIds:
+  #       - !Ref PublicRouteTable
+  #       - !Ref PrivateRouteTable
+  #     ServiceName: !Join
+  #       - ''
+  #       - - com.amazonaws.
+  #         - !Ref AWS::Region
+  #         - .s3
+  #     VpcId: !Ref VPC
+
+  S3VPCEndpoint:
     Type: AWS::EC2::VPCEndpoint
     Properties:
-      PolicyDocument:
-        Version: 2012-10-17
-        Statement:
-            - Effect: Allow
-              Principal: '*'
-              Action:
-                - '*'
-              Resource:
-                - '*'
+      VpcId: !Ref VPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
       RouteTableIds:
         - !Ref PublicRouteTable
         - !Ref PrivateRouteTable
-      ServiceName: !Join
-        - ''
-        - - com.amazonaws.
-          - !Ref AWS::Region
-          - .s3
+      VpcEndpointType: Gateway
+
+  SSMVPCVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
       VpcId: !Ref VPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      SubnetIds:
+        - !Ref PrimaryPrivateSubnet
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  SSMMessagesVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      SubnetIds:
+        - !Ref PrimaryPrivateSubnet
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  STSVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.sts
+      SubnetIds:
+        - !Ref PrimaryPrivateSubnet
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  LogsVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      SubnetIds:
+        - !Ref PrimaryPrivateSubnet
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  MonitoringVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.monitoring
+      SubnetIds:
+        - !Ref PrimaryPrivateSubnet
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
 
   FSxLFilesystem:
     Type: AWS::FSx::FileSystem
