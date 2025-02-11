@@ -649,7 +649,6 @@ Resources:
         - !Ref VpcId
       ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
       RouteTableIds:
-        - !Ref PublicRouteTable
         - !Ref PrivateRouteTable
       VpcEndpointType: Gateway
 
