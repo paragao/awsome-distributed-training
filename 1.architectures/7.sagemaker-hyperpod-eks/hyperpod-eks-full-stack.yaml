@@ -758,6 +758,35 @@ Resources:
       VpcEndpointType: Interface
       PrivateDnsEnabled: true
 
+  LogsVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      SubnetIds:
+        - !Ref PrivateSubnet1
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+
+  MonitoringVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !If 
+        - CreateEKSCluster
+        - !Ref VPC
+        - !Ref VpcId
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.monitoring
+      SubnetIds:
+        - !Ref PrivateSubnet1
+      SecurityGroupIds:
+        - !Ref NoIngressSecurityGroup
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
 
 
 Outputs:
