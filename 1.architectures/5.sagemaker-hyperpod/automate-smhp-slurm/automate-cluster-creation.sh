@@ -332,9 +332,9 @@ create_config() {
         fi
 
         echo -e "${YELLOW}Configuring Worker Group $WORKER_GROUP_COUNT${NC}"
-        # Re: Invent 2024 AIM403: Use ml.c5.4xlarge
-        INSTANCE_TYPE=$(get_input "Enter the instance type for worker group $WORKER_GROUP_COUNT" "ml.c5.4xlarge")
-        INSTANCE_COUNT=$(get_input "Enter the instance count for worker group $WORKER_GROUP_COUNT" "4")
+        # Workshop: Use ml.g5.8xlarge
+        INSTANCE_TYPE=$(get_input "Enter the instance type for worker group $WORKER_GROUP_COUNT" "ml.g5.8xlarge")
+        INSTANCE_COUNT=$(get_input "Enter the instance count for worker group $WORKER_GROUP_COUNT" "2")
                 
         INSTANCE_GROUPS+=",
         {
@@ -483,7 +483,7 @@ display_important_prereqs() {
     echo -e "\n${BLUE}NOTE: You will be prompted to enter details for setting up your cluster. This would look like${NC}"
     echo -e "\n${YELLOW}<Question>[default value]: ${NC}"
     echo -e "\n${BLUE}For example,${NC}"
-    echo -e "\n${YELLOW}**This is an example** Enter the instance type for your worker group [ml.c5.4xlarge]: **This is an example**${NC}"
+    echo -e "\n${YELLOW}**This is an example** Enter the instance type for your worker group [ml.g5.8xlarge]: **This is an example**${NC}"
     echo -e "\n${BLUE}Since this is a workshop, you may choose the default values! To do so, hit ENTER for each question that comes up!${NC}"
 
     echo -e "\n${YELLOW}Ready to proceed? Press Enter to continue or Ctrl+C to exit...${NC}"
