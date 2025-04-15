@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -euo pipefail
 
 # https://askubuntu.com/a/1472412
@@ -7,21 +6,74 @@ set -euo pipefail
 EXCLUDED_CHAR="'\"\`\\[]{}()*#"
 SLURM_DB_PASSWORD=$(apg -a 1 -M SNCL -m 10 -x 10 -n 1 -E "${EXCLUDED_CHAR}")
 
-# Retain adt behavior. However, verbosity will be disabled at select places to
-# prevent credentials getting leaked to Cloudwatch logs.
+# Retain behavior but disable verbosity at select places to prevent credentials leakage
 set -x
 
 SLURM_ACCOUNTING_CONFIG_FILE=/opt/slurm/etc/accounting.conf
 SLURMDB_CONFIG_FILE=/opt/slurm/etc/slurmdbd.conf
 SLURMDB_SERVICE_FILE=/etc/systemd/system/slurmdbd.service
-
 LOG_DIR=/var/log/provision
+
+# FSx directory for MariaDB data
+FSX_MYSQL_DIR=/fsx/mysql
+
 if [ ! -d "$LOG_DIR" ]; then
   mkdir -p "$LOG_DIR"
 fi
 
+# Check if FSx is mounted and ready
+check_fsx_mounted() {
+  if ! mountpoint -q /fsx; then
+    echo "ERROR: FSx is not mounted at /fsx. Cannot proceed."
+    exit 1
+  fi
+  
+  # Test if we can write to FSx
+  if ! touch /fsx/.test_write 2>/dev/null; then
+    echo "ERROR: Cannot write to FSx mount. Check permissions."
+    exit 1
+  fi
+  
+  rm -f /fsx/.test_write
+  echo "FSx is properly mounted and writable."
+}
+
+# Create directory on FSx for MariaDB
+create_mysql_dir_on_fsx() {
+  echo "Creating MySQL data directory on FSx"
+  
+  # Create directory for MySQL data
+  mkdir -p $FSX_MYSQL_DIR
+  
+  # Set proper ownership and permissions
+  chown -R mysql:mysql $FSX_MYSQL_DIR
+  chmod 700 $FSX_MYSQL_DIR
+}
+
+# Update AppArmor profile for MariaDB to allow access to FSx
+update_apparmor_profile() {
+  echo "Updating AppArmor profile for MariaDB"
+  
+  # Check if AppArmor is present and active
+  if command -v apparmor_status &>/dev/null && apparmor_status --enabled; then
+    # Ensure local directory exists
+    mkdir -p /etc/apparmor.d/local/
+    
+    # Create a local AppArmor profile for MariaDB that includes FSx
+    cat > /etc/apparmor.d/local/usr.sbin.mysqld << EOF
+# Allow MariaDB to access FSx mounted directory
+$FSX_MYSQL_DIR/ r,
+$FSX_MYSQL_DIR/** rwk,
+EOF
+    
+    # Reload AppArmor profiles
+    systemctl reload apparmor || echo "Warning: Failed to reload AppArmor profiles"
+  else
+    echo "AppArmor not enabled or installed, skipping profile update"
+  fi
+}
+
 # Setup MariaDB using secure_installation and default password.
-# Use expect to for the interactive shell.
 setup_mariadb() {
   echo "Running mysql_secure_installation"
   set +x
@@ -45,6 +97,49 @@ setup_mariadb() {
   ")
   set -x
   chmod 400 /var/log/provision/secure_mysql.log
+}
+
+# Configure MariaDB to use the FSx directory
+configure_mariadb_for_fsx() {
+  echo "Configuring MariaDB to use FSx directory"
+  
+  # First check if MySQL is already using FSx
+  if systemctl is-active mariadb &>/dev/null; then
+    systemctl stop mariadb
+  fi
+  
+  # Check if MariaDB was already initialized in FSx
+  if [ -f "$FSX_MYSQL_DIR/ibdata1" ]; then
+    echo "MariaDB database files already exist on FSx. Using existing files."
+  else
+    echo "Initializing MariaDB database on FSx"
+    
+    # If local MySQL data exists and not empty
+    if [ -d "/var/lib/mysql" ] && [ "$(ls -A /var/lib/mysql 2>/dev/null)" ]; then
+      echo "Moving existing MySQL data to FSx"
+      rsync -a /var/lib/mysql/ $FSX_MYSQL_DIR/
+    else
+      # Initialize the database in the FSx location
+      mysql_install_db --datadir=$FSX_MYSQL_DIR --user=mysql
+    fi
+  fi
+  
+  # Create or modify MariaDB configuration to use FSx
+  mkdir -p /etc/mysql/mariadb.conf.d/
+  cat > /etc/mysql/mariadb.conf.d/99-fsx.cnf << EOF
+[mysqld]
+datadir=$FSX_MYSQL_DIR
+EOF
+
+  # Start MariaDB service
+  systemctl start mariadb
+  
+  # Check if MariaDB is running
+  if ! systemctl is-active mariadb &>/dev/null; then
+    echo "ERROR: Failed to start MariaDB after configuration"
+    systemctl status mariadb
+    exit 1
+  fi
 }
 
 # Create the default database for SLURM accounting
@@ -81,14 +176,12 @@ create_slurmdbd_config() {
   set +x
   SLURM_DB_USER=slurm SLURM_DB_PASSWORD="$SLURM_DB_PASSWORD" envsubst < "$SLURMDB_CONFIG_FILE.template" > $SLURMDB_CONFIG_FILE
   set -x
-
   chown slurm:slurm $SLURMDB_CONFIG_FILE
   chmod 600 $SLURMDB_CONFIG_FILE
   echo 'END: create_slurmdbd_config()'
 }
 
-# Append the accounting settings to accounting.conf, this file is empty by default and included into
-# slurm.conf. This is required for Slurm to enable accounting.
+# Append the accounting settings to accounting.conf
 add_accounting_to_slurm_config() {
     # `hostname -i` gave us "hostname: Name or service not known". So let's parse slurm.conf.
     DBD_HOST=$(awk -F'[=(]' '/^SlurmctldHost=/ { print $NF }' /opt/slurm/etc/slurm.conf | tr -d ')')
@@ -102,23 +195,59 @@ AccountingStoragePort=6819
 EOL
 }
 
+# Add systemd dependency to ensure MariaDB starts after FSx
+add_systemd_dependency() {
+  echo "Adding systemd dependency to ensure MariaDB starts after FSx is mounted"
+  
+  mkdir -p /etc/systemd/system/mariadb.service.d/
+  cat > /etc/systemd/system/mariadb.service.d/fsx-dependency.conf << EOF
+[Unit]
+After=remote-fs.target
+Requires=remote-fs.target
+EOF
+
+  systemctl daemon-reload
+}
+
 main() {
-  echo "[INFO]: Start configuration for SLURM accounting."
-
-  # Start mariadb and check status
-  systemctl start mariadb
-  systemctl status mariadb
-
-  setup_mariadb
-  create_slurm_database
-
+  echo "[INFO]: Start configuration for SLURM accounting with FSx storage."
+  
+  # Check if FSx is mounted and ready
+  check_fsx_mounted
+  
+  # Create directory for MySQL data on FSx
+  create_mysql_dir_on_fsx
+  
+  # Update AppArmor profile for MariaDB
+  update_apparmor_profile
+  
+  # Configure MariaDB to use FSx directory
+  configure_mariadb_for_fsx
+  
+  # Add systemd dependency to ensure MariaDB starts after FSx
+  add_systemd_dependency
+  
+  # Perform secure installation if this is a new setup
+  if [ ! -f "/fsx/mysql/.secure_installation_done" ]; then
+    setup_mariadb
+    touch /fsx/mysql/.secure_installation_done
+  else
+    echo "MariaDB secure installation already performed. Skipping."
+  fi
+  
+  # Create slurm database if it doesn't exist
+  if ! mysql -e "USE slurm_acct_db;" &>/dev/null; then
+    create_slurm_database
+  else
+    echo "slurm_acct_db already exists. Skipping database creation."
+  fi
+  
   create_slurmdbd_config
   add_accounting_to_slurm_config
-
+  
   systemctl enable --now slurmdbd
-
-  # validate_slurm_accounting
-  echo "[INFO]: Completed configuration for SLURM accounting."
+  
+  echo "[INFO]: Completed configuration for SLURM accounting with FSx storage."
 }
 
 main "$@"
