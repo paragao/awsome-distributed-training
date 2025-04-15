@@ -1,5 +1,5 @@
-#!/usr/bin/env python
 
+#!/usr/bin/env python
 import argparse
 from enum import Enum
 import json
@@ -131,6 +131,35 @@ def wait_for_slurm_conf(controllers: List[str]) -> bool:
         time.sleep(sleep)
     return False
 
+
+def wait_for_fsx_ready(mount_point: str) -> bool:
+    """
+    Wait for FSx to be fully mounted and ready for read/write operations.
+    Returns:
+        bool: True if FSx is ready, False if timed out
+    """
+    sleep = 5  # sec
+    timeout = 60  # sec
+    test_file = os.path.join(mount_point, ".test_write")
+    
+    print(f"Checking if FSx at {mount_point} is ready for read/write operations...")
+    for i in range(timeout // sleep):
+        if os.path.ismount(mount_point):
+            try:
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+                print(f"FSx at {mount_point} is mounted and ready for read/write operations")
+                return True
+            except (IOError, OSError) as e:
+                print(f"FSx mount point exists but not ready for writing yet: {e}")
+        print(f"Waiting for FSx mount to be ready. Retrying in {sleep} seconds...")
+        time.sleep(sleep)
+    
+    print(f"Timed out waiting for FSx at {mount_point} to be ready")
+    return False
+
+
 def wait_for_scontrol():
     """
     Checks if 'scontrol show nodes' command returns output within specified time.
@@ -161,15 +190,22 @@ def main(args):
     resource_config = ResourceConfig(args.resource_config)
 
     fsx_dns_name, fsx_mountname = params.fsx_settings
+    fsx_mounted = False
     if fsx_dns_name and fsx_mountname:
         print(f"Mount fsx: {fsx_dns_name}. Mount point: {fsx_mountname}")
         ExecuteBashScript("./mount_fsx.sh").run(fsx_dns_name, fsx_mountname, "/fsx")
+        # Ensure FSx is fully ready before proceeding
+        fsx_mounted = wait_for_fsx_ready("/fsx")
+        if not fsx_mounted:
+            print("WARNING: FSx may not be fully ready, but will continue with setup")
+            fsx_mounted = True  # Assume it will be ready soon
 
     # Add FSx OpenZFS mount section
     fsx_openzfs_dns_name = params.fsx_openzfs_settings
     if Config.enable_fsx_openzfs and fsx_openzfs_dns_name:
         print(f"Mount FSx OpenZFS: {fsx_openzfs_dns_name}. Mount point: /home")
         ExecuteBashScript("./mount_fsx_openzfs.sh").run(fsx_openzfs_dns_name, "/home")
+        wait_for_fsx_ready("/home")
 
     ExecuteBashScript("./add_users.sh").run()
 
@@ -196,9 +232,15 @@ def main(args):
             node_type = SlurmNodeType.LOGIN_NODE
 
         if node_type == SlurmNodeType.HEAD_NODE:
+            # For head node, we need to ensure FSx is mounted before setting up MariaDB
+            if not fsx_mounted:
+                print("ERROR: FSx must be mounted before setting up MariaDB accounting")
+                sys.exit(1)
+                
             if params.slurm_configurations:
                 ExecuteBashScript("./multi_headnode_setup/headnode_setup.sh").run()
             else:
+                # Now we can safely set up MariaDB on FSx
                 ExecuteBashScript("./setup_mariadb_accounting.sh").run()
 
         ExecuteBashScript("./apply_hotfix.sh").run(node_type)
